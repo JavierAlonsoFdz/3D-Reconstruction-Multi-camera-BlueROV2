@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Converts synchronized multi-camera image folders into a .bag file with topics /<camera>/compressed and uniform timestamps (30 Hz), ready for calibration with Kalibr."""
+
+
+import rosbag
+from pathlib import Path
+import cv_bridge
+import argparse
+import re
+import cv2
+import genpy
+
+expr = r".*(\d+)\.png"
+
+pattern = re.compile(expr)
+
+def extract_sequence_number(filename):
+    match = pattern.match(filename)
+    return int(match.group(1))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="""Script to convert a directory of multicamera images.
+                                     Multicamera directory should consist of a folder for each camera, with image files containing an integer in the filename to denote sequence.
+                                     Cameras are assumed to be synchronized.""")
+    parser.add_argument("multicamera_directories", type=Path, nargs="+", help="Path or paths to folders containing multicamera data.")
+    args = parser.parse_args()
+    bridge = cv_bridge.CvBridge()
+    for multicam_dir in args.multicamera_directories:
+        camera_paths = tuple(entry for entry in multicam_dir.iterdir() if entry.is_dir())
+        images = []
+        camera_manifest = {}
+        for camera_path in camera_paths:
+            camera_name = camera_path.stem
+            images = [image_path.name for image_path in camera_path.iterdir() if image_path.is_file()]
+            camera_manifest.update({camera_name: images})
+        for image_list in camera_manifest.values():
+            images.extend(image_list)
+        images = list(set(images))
+        images.sort(reverse=False)
+        image_manifest = {}
+        for image in images:
+            entry = []
+            for camera_name, value in camera_manifest.items():
+                if image in value:
+                    entry.append(camera_name)
+            image_manifest.update({image: entry})
+        writer = rosbag.Bag("output.bag", "w")
+        counter = 0.0
+        for image_name, cameras in image_manifest.items():
+            for camera in cameras:
+                topic = f"/{camera}/compressed"
+                ts = genpy.Time.from_sec(counter)
+                image_path = multicam_dir.joinpath(camera, image_name)
+                img = cv2.imread(str(image_path))
+                img_msg = bridge.cv2_to_compressed_imgmsg(img, dst_format = "png")
+                img_msg.header.frame_id = camera
+                img_msg.header.stamp = ts
+                writer.write(topic, img_msg, ts)
+            counter = counter + 1.0 / 30.0
+        writer.close()
+
+if __name__ == "__main__":
+    main()

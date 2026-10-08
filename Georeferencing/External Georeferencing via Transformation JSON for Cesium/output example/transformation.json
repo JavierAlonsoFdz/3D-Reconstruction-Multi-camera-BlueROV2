@@ -1,0 +1,53 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "extensionsUsed": [
+    "3DTILES_content_gltf"
+  ],
+  "extensionsRequired": [
+    "3DTILES_content_gltf"
+  ],
+  "geometricError": 500,
+  "root": {
+    "transform": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      3512654.1608523917,
+      790383.7400805186,
+      5247046.617259826,
+      1.0
+    ],
+    "boundingVolume": {
+      "box": [
+        0,
+        0,
+        0,
+        40,
+        0,
+        0,
+        0,
+        40,
+        0,
+        0,
+        0,
+        40
+      ]
+    },
+    "geometricError": 0,
+    "refine": "ADD",
+    "content": {
+      "uri": "Cannon.glb"
+    }
+  }
+}

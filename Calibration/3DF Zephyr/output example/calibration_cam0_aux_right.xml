@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<calibrations><camera cameraMaker="NA" cameraModel="pinhole" lense="NA" fx="1430.873601153776" fy="1427.9823910992327" cx="999.5358720655091" cy="470.20064923677313" k1="-0.2931300950982268" k2="0.09296650226826333" p1="-0.0014484395881303996" p2="-0.006883377448563403" k3="0" name="cam0_aux_right" /></calibrations>
