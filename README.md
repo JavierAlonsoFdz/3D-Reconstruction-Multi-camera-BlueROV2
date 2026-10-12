@@ -1,12 +1,14 @@
 # 3D Reconstruction Multi-Camera BlueROV2
 
 This repository contains tools for 3D reconstruction using a multi-camera setup mounted on a BlueROV2 platform. 
-<img src="images/ROV_4cam.jpg" alt="BlueROV2 with four-camera system" width="565">
-<img src="images/multi-camera%20rig.png" alt="Multi-camera rig" width="578">
 
 The project is developed at DTU Aqua and focuses on underwater image preparation and preprocessing, camera calibration and georeferencing of generated 3D models.
 
+
 The workflow is designed for datasets captured with four synchronized cameras and supports both clear-water and turbid-water conditions.
+
+<img src="images/ROV_4cam.jpg" alt="BlueROV2 with four-camera system" width="565">
+<img src="images/multi-camera%20rig.png" alt="Multi-camera rig" width="578">
 
 ## Project Overview
 
@@ -34,47 +36,6 @@ The main workflow includes:
    - [Internal georeferencing](Georeferencing/Internal%20Georeferencing%20via%20EXIF%20metadata%20for%203DF%20Zephyr/) by writing GPS/depth metadata into image EXIF fields for use in 3DF Zephyr.
    - [External georeferencing](Georeferencing/External%20Georeferencing%20via%20Transformation%20JSON%20for%20Cesium/) by generating transformation data for Cesium-based visualization of exported 3D models.
 
-## Repository Structure
-
-```text
-.
-+-- README.md
-+-- requirements.txt
-+-- Calibration/
-|   +-- README.md
-|   +-- Kalibr/
-|   |   +-- input example/
-|   |   |   +-- cam0_aux_right/
-|   |   |   +-- cam1_aux_left/
-|   |   |   +-- cam2_bottom_most/
-|   |   |   +-- cam3_stereo_bottom/
-|   |   +-- output example/
-|   |   +-- april_6x6_80x80cm.yaml
-|   +-- Calibration GUI for Kalibr/
-|   |   +-- calibration_gui_preprocessing.py
-|   |   +-- main_preprocessing.py
-|   |   +-- filter.py
-|   +-- 3DF Zephyr/
-|       +-- input example/
-|       +-- output example/
-|       +-- calib_transform.py
-+-- GUI preprocessing/
-|   +-- gui_preprocessing.py
-|   +-- main_preprocessing.py
-|   +-- filter.py
-|   +-- key_frame_selection_auto.py
-+-- Georeferencing/
-|   +-- Internal Georeferencing via EXIF metadata for 3DF Zephyr/
-|   |   +-- input example/
-|   |   +-- output example/
-|   |   +-- geotag_images_exif.py
-|   +-- External Georeferencing via Transformation JSON for Cesium/
-|       +-- input example/
-|       +-- output example/
-|       +-- geolocate_glb.py
-+-- Video cropper/
-    +-- converter.py
-```
 
 ## Typical Workflow
 
