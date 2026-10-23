@@ -1,4 +1,0 @@
-Recording clicked (topside clock): 2026-10-20T16:12:29.188
-Video start (topside clock):       2026-10-20 16:12:30
-Multicam computer clock offset:    -712.264 s (measured at the recording (ROS helper, +/-4 ms))
-The recording date inside each .mkv has been corrected to the topside clock.

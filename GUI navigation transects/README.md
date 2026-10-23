@@ -17,7 +17,7 @@ The cropped videos can then be used directly in the [GUI preprocessing](../GUI%2
 
 ## Inputs
 
-The `videos/` and `output/` folders are **not included in the repository** (they are too large). To run the tool you need:
+The `videos/`, `navigation data/` and `output/` folders are **not included in the repository** (mission data). To run the tool you need:
 
 ### 1. Videos folder
 
@@ -36,7 +36,7 @@ When the ROV GUI downloads the videos, it writes the real recording start (corre
 
 ### 2. Navigation data folder
 
-The navigation data folder of the **same mission**, exported by the ROV GUI. An example is included in [`navigation data/`](navigation%20data/):
+The navigation data folder of the **same mission**, exported by the ROV GUI (not included in the repository). It contains:
 
 - `*_cam0_transformed.csv`: navigation transformed to the position of `cam0` (camera offset and mount already applied). Used with the **cam0** position option (default).
 - `*_navigation.csv`: navigation of the vehicle itself (IMU). Used with the **Vehicle** position option.
