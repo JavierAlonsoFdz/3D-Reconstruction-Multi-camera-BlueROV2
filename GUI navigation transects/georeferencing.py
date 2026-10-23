@@ -273,7 +273,8 @@ def run(videos_dir: Path, navigation: Path, start: str, end: str, out_root: Opti
     real_end = reference.start + timedelta(seconds=end_s)
     first, last = position_at(fixes, real_start), position_at(fixes, real_end)
 
-    mission = mission_name(navigation_csv)
+    # 'multicamera_recording_161229' -> 'multicamera_recording': the crop times replace the recording start
+    mission = re.sub(r"_\d{6}$", "", mission_name(navigation_csv))
     name = f"{mission}_{real_start:%H%M%S}_{real_end:%H%M%S}"
     out_dir = Path(out_root or Path(__file__).resolve().parent / "output") / name
     out_dir.mkdir(parents=True, exist_ok=True)

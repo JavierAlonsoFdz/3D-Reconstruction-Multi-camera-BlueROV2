@@ -72,13 +72,13 @@ python georeferencing.py --videos videos --navigation "navigation data" --start 
 
 ## Output
 
-A folder `<mission>_<HHMMSS start>_<HHMMSS end>` is created inside the output folder, where the times are the real (topside clock) start and end of the crop:
+A folder `<mission>_<HHMMSS start>_<HHMMSS end>` is created inside the output folder, where `<mission>` is the recording name without its start time (e.g. `multicamera_recording`) and the times are the real (topside clock) start and end of the crop:
 
 ```
 output/
-└── multicamera_recording_161229_161235_161255/
-    ├── multicamera_recording_161229_161235_161255.csv
-    ├── multicamera_recording_161229_161235_161255_all_timestamps.csv
+└── multicamera_recording_161235_161255/
+    ├── multicamera_recording_161235_161255.csv
+    ├── multicamera_recording_161235_161255_all_timestamps.csv
     ├── video_aux_left.mp4
     ├── video_aux_right.mp4
     ├── video_bottom_most.mp4
