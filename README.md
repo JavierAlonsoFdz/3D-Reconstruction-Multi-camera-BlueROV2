@@ -60,7 +60,7 @@ The main workflow includes:
    - `fixed`: extracts frames at regular frame intervals.
    - `auto`: selects keyframes automatically using optical-flow-based motion analysis.
 
-6. Reconstruct the 3D model in external photogrammetry software.
+6. Reconstruct the 3D model in photogrammetry software.
 7. Georeference the model internally with EXIF metadata or externally with Cesium transformation files.
 
 
