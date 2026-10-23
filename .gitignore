@@ -1,5 +1,6 @@
 # Large mission data kept out of the repository
 GUI navigation transects/videos/
 GUI navigation transects/output/
+Calibration/Kalibr/output example/all_cams_calibration.bag
 
 __pycache__/

@@ -10,7 +10,9 @@ navigation data folder), this:
          Date, Timestamp, Latitude, Longitude, Depth
          <position at the first frame of the crop>
          <position at the last frame of the crop>
-     interpolated in time from the cam0-referenced navigation (cam0 = aux_right).
+     interpolated in time from the cam0-referenced navigation (cam0 = aux_right);
+  3. writes <mission>_<HHMMSS start>_<HHMMSS end>_all_timestamps.csv with the same columns and every
+     navigation row between the first and the last frame (the two interpolated ends included).
 
 Time base: the topside (laptop) clock, which is what the navigation CSVs use. The ROV GUI writes
 the real recording start into each .mkv when it downloads it; recording_time.txt is the fallback.
@@ -200,11 +202,16 @@ def position_at(fixes: list[Fix], when: datetime) -> Fix:
                before.depth + weight * (after.depth - before.depth))
 
 
-def write_csv(path: Path, start: Fix, end: Fix) -> None:
+def fixes_between(fixes: list[Fix], start: Fix, end: Fix) -> list[Fix]:
+    """start, every navigation row strictly between start and end, and end."""
+    return [start, *(fix for fix in fixes if start.time < fix.time < end.time), end]
+
+
+def write_csv(path: Path, rows: list[Fix]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file_obj:
         writer = csv.writer(file_obj)
         writer.writerow(CSV_FIELDS)
-        for fix in (start, end):
+        for fix in rows:
             writer.writerow([fix.time.strftime("%Y-%m-%d"), fix.time.strftime("%H:%M:%S.%f")[:-3],
                              f"{fix.lat:.8f}", f"{fix.lon:.8f}", f"{fix.depth:.3f}"])
 
@@ -271,12 +278,16 @@ def run(videos_dir: Path, navigation: Path, start: str, end: str, out_root: Opti
     out_dir = Path(out_root or Path(__file__).resolve().parent / "output") / name
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"{name}.csv"
-    write_csv(csv_path, first, last)
+    write_csv(csv_path, [first, last])
+    track = fixes_between(fixes, first, last)
+    track_path = out_dir / f"{name}_all_timestamps.csv"
+    write_csv(track_path, track)
     log(f"crop {format_offset(start_s)} - {format_offset(end_s)} of the video = "
         f"{real_start:%H:%M:%S.%f}"[:-3] + f" - {real_end:%H:%M:%S.%f}"[:-3] + " (topside clock)")
     log(f"  start: {first.lat:.8f}, {first.lon:.8f}, depth {first.depth:.3f} m")
     log(f"  end:   {last.lat:.8f}, {last.lon:.8f}, depth {last.depth:.3f} m")
     log(f"wrote {csv_path}")
+    log(f"wrote {track_path} ({len(track)} rows)")
 
     log(f"converting {len(videos)} videos to MP4...")
     for video in videos.values():

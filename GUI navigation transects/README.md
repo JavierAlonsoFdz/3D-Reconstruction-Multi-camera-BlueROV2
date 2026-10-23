@@ -6,9 +6,9 @@ Given a time range inside the videos (`Start` / `End`), the tool:
 
 1. Cuts that range out of each of the four camera `.mkv` videos and converts it to `.mp4` (same `ffmpeg` settings as [`Tools/converter.py`](../Tools/)). Each `.mp4` keeps the real start time of the crop in its `creation_time` metadata.
 2. Converts the video times to real (topside clock) times and interpolates the navigation data to obtain the position (latitude, longitude, depth) at the **first** and **last** frame of the crop.
-3. Writes the four cropped videos and a CSV with those two positions into a new output folder.
+3. Writes the four cropped videos and two CSV files into a new output folder: one with the start and end positions, and one with every navigation row (all timestamps) of the crop.
 
-The cropped videos can then be used directly in the [GUI preprocessing](../GUI%20preprocessing/) for keyframe extraction, and the CSV gives the georeferenced start and end of the transect.
+The cropped videos can then be used directly in the [GUI preprocessing](../GUI%20preprocessing/) for keyframe extraction, and the CSV files give the georeferenced start and end of the transect and its full track.
 
 ## Files
 
@@ -78,17 +78,31 @@ A folder `<mission>_<HHMMSS start>_<HHMMSS end>` is created inside the output fo
 output/
 └── multicamera_recording_161229_161235_161255/
     ├── multicamera_recording_161229_161235_161255.csv
+    ├── multicamera_recording_161229_161235_161255_all_timestamps.csv
     ├── video_aux_left.mp4
     ├── video_aux_right.mp4
     ├── video_bottom_most.mp4
     └── video_stereo_bottom.mp4
 ```
 
-The CSV contains the position at the first and last frame of the crop:
+Both CSV files have the same columns (`Date`, `Timestamp`, `Latitude`, `Longitude`, `Depth`).
+
+**`<name>.csv`**: position at the first and last frame of the crop:
 
 ```csv
 Date,Timestamp,Latitude,Longitude,Depth
 2026-10-20,16:12:35.264,55.78323936,12.51413545,0.939
+2026-10-20,16:12:55.264,55.78321505,12.51409064,1.014
+```
+
+**`<name>_all_timestamps.csv`**: every row of the original navigation CSV between the start and end of the crop. The first and last rows are the interpolated start and end positions (the same as in `<name>.csv`), so the track covers exactly the cropped video:
+
+```csv
+Date,Timestamp,Latitude,Longitude,Depth
+2026-10-20,16:12:35.264,55.78323936,12.51413545,0.939
+2026-10-20,16:12:35.265,55.78323936,12.51413545,0.939
+...
+2026-10-20,16:12:55.166,55.78321502,12.51409020,1.019
 2026-10-20,16:12:55.264,55.78321505,12.51409064,1.014
 ```
 

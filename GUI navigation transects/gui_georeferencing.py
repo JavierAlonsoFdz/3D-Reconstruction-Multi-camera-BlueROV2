@@ -6,8 +6,9 @@ GUI to crop the 4 multicamera videos of a mission and georeference the crop:
 - Navigation data folder of the same mission
 - Start / end inside the video (HH:MM:SS)
 
-Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4 and a CSV with the
-position (date, time, latitude, longitude, depth) at the first and the last frame.
+Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4, a CSV with the
+position (date, time, latitude, longitude, depth) at the first and the last frame, and
+a *_all_timestamps.csv with the same columns for every navigation row in between.
 
 Usage:
     python gui_georeferencing.py
