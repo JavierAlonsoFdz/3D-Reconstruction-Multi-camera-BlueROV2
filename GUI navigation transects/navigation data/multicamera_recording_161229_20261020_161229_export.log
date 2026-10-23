@@ -1,0 +1,26 @@
+[16:08:44.609] exporter started (modules loaded), standby
+[16:08:44.672] MAVLink connection opened (udpout:192.168.2.2:14550)
+[16:08:44.673] standby: waiting for 'start <prefix>' on stdin
+[16:08:44.716] first MAVLink message (ATTITUDE)
+[16:08:44.716] DVL stream 192.168.2.128:16171 connected
+[16:11:59.025] DVL stream 192.168.2.128:16171 unavailable (timed out); altitude_m stays empty
+[16:12:02.031] DVL stream 192.168.2.128:16171 connected
+[16:12:29.258] recording started: C:\Users\jalfe\Desktop\PhD\ROV GUI\navigation data\2026-10-20\mission_0003_multicamera_recording_161229\multicamera_recording_161229_20261020_161229
+[16:12:29.262] first navigation row written
+
+Interrupted. Closing the files...
+Recording summary
+  start: 2026-10-20 16:12:29.260   end: 2026-10-20 16:13:23.584   duration: 54.3 s
+  rows: 544 (one per ATTITUDE message), without position: 0
+  altitude_m: 453 measured by the DVL (valid lock), 36 interpolated (gaps <= 2 s), 55 empty
+  position: interpolated between updates in 541 of 544 rows (updates <= 2 s apart)
+  source: MAVLink udpout:192.168.2.2:14550
+  cam0: offset forward 0.2 m, right 0.1 m, down 0.3 m (body FRD); pitch -40.0 deg (negative = down)
+  cam0 quaternion: camera optical axes (x right, y down, z view) -> NED (camera-to-world)
+  wrote C:\Users\jalfe\Desktop\PhD\ROV GUI\navigation data\2026-10-20\mission_0003_multicamera_recording_161229\multicamera_recording_161229_20261020_161229_navigation.csv
+  wrote C:\Users\jalfe\Desktop\PhD\ROV GUI\navigation data\2026-10-20\mission_0003_multicamera_recording_161229\multicamera_recording_161229_20261020_161229_cam0_transformed.csv
+
+Clock check
+  recording clicked (topside clock, the CSV time base): 2026-10-20T16:12:29.188
+  multicam computer clock offset: -712.264 s (ROS helper, +/-4 ms)
+  video dates are corrected by +712.264 s when the videos are downloaded (Save Videos)

@@ -1,0 +1,5 @@
+# Large mission data kept out of the repository
+GUI navigation transects/videos/
+GUI navigation transects/output/
+
+__pycache__/

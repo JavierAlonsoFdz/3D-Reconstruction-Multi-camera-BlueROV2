@@ -6,5 +6,5 @@ pyproj
 PyYAML
 
 # External command-line tools used by some workflows:
-# - ffmpeg: required by Video cropper/converter.py
+# - ffmpeg/ffprobe: required by Tools/converter.py and GUI navigation transects/
 # - exiftool: required by Georeferencing/Internal Georeferencing via EXIF metadata for 3DF Zephyr/geotag_images_exif.py
