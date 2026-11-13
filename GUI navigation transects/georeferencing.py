@@ -14,6 +14,10 @@ navigation data folder), this:
   3. writes <mission>_<HHMMSS start>_<HHMMSS end>_all_timestamps.csv with the same columns and every
      navigation row between the first and the last frame (the two interpolated ends included).
 
+Both CSVs also carry Roll, Pitch, Heading: the ROV (body) attitude in degrees, from the mission's
+*_navigation.csv (pitch < 0 = nose down, heading clockwise from north). The preprocessing uses it
+to place cam1..cam3 relative to cam0 when the ROV is tilted (e.g. "mount tilt down").
+
 Time base: the topside (laptop) clock, which is what the navigation CSVs use. The ROV GUI writes
 the real recording start into each .mkv when it downloads it; recording_time.txt is the fallback.
 
@@ -42,7 +46,7 @@ NAVIGATION_FILES = {
     "cam0": "_cam0_transformed.csv",  # position of cam0 (offset and mount applied by the ROV GUI)
     "vehicle": "_navigation.csv",  # position of the vehicle (IMU)
 }
-CSV_FIELDS = ("Date", "Timestamp", "Latitude", "Longitude", "Depth")
+CSV_FIELDS = ("Date", "Timestamp", "Latitude", "Longitude", "Depth", "Roll", "Pitch", "Heading")
 # A video date this far from the click time was not corrected to the topside clock.
 UNCORRECTED_DATE_S = 60.0
 
@@ -64,6 +68,10 @@ class Fix:
     lat: float
     lon: float
     depth: float
+    # ROV (body) attitude, degrees; None if the vehicle navigation CSV is not available
+    roll: Optional[float] = None
+    pitch: Optional[float] = None
+    heading: Optional[float] = None
 
 
 def parse_time(text: str) -> float:
@@ -174,16 +182,47 @@ def mission_name(navigation_csv: Path) -> str:
     return re.sub(r"_\d{8}_\d{6}$", "", stem)
 
 
+def load_vehicle_attitude(navigation_csv: Path) -> dict[str, tuple[float, float, float]]:
+    """{timestamp: (roll, pitch, heading)} of the ROV body, from the *_navigation.csv next to navigation_csv.
+
+    The cam0 CSV holds the camera's attitude (body + mount), so the body attitude comes from the
+    vehicle CSV; both are written row by row from the same ATTITUDE messages (same timestamps).
+    """
+    try:
+        vehicle_csv = find_navigation(navigation_csv, "vehicle")
+    except FileNotFoundError:
+        return {}
+    attitude = {}
+    with vehicle_csv.open(newline="", encoding="utf-8") as file_obj:
+        for row in csv.DictReader(file_obj):
+            if row.get("roll_deg") and row.get("pitch_deg") and row.get("heading_deg"):
+                attitude[row["timestamp"]] = (float(row["roll_deg"]), float(row["pitch_deg"]), float(row["heading_deg"]))
+    return attitude
+
+
 def load_fixes(navigation_csv: Path) -> list[Fix]:
+    attitude = load_vehicle_attitude(navigation_csv)
     fixes = []
     with navigation_csv.open(newline="", encoding="utf-8") as file_obj:
         for row in csv.DictReader(file_obj):
             if row.get("lat_deg") and row.get("lon_deg") and row.get("depth_m"):
+                roll, pitch, heading = attitude.get(row["timestamp"], (None, None, None))
                 fixes.append(Fix(datetime.fromisoformat(row["timestamp"]), float(row["lat_deg"]),
-                                 float(row["lon_deg"]), float(row["depth_m"])))
+                                 float(row["lon_deg"]), float(row["depth_m"]), roll, pitch, heading))
     if len(fixes) < 2:
         raise ValueError(f"{navigation_csv.name} has no rows with latitude, longitude and depth")
     return fixes
+
+
+def _lerp(a: Optional[float], b: Optional[float], weight: float) -> Optional[float]:
+    return None if a is None or b is None else a + weight * (b - a)
+
+
+def _lerp_angle(a: Optional[float], b: Optional[float], weight: float) -> Optional[float]:
+    """Interpolate a heading the short way round (359 -> 1 passes through 0)."""
+    if a is None or b is None:
+        return None
+    return (a + weight * ((b - a + 180.0) % 360.0 - 180.0)) % 360.0
 
 
 def position_at(fixes: list[Fix], when: datetime) -> Fix:
@@ -199,7 +238,9 @@ def position_at(fixes: list[Fix], when: datetime) -> Fix:
     span = (after.time - before.time).total_seconds()
     weight = 0.0 if span <= 0 else (when - before.time).total_seconds() / span
     return Fix(when, before.lat + weight * (after.lat - before.lat), before.lon + weight * (after.lon - before.lon),
-               before.depth + weight * (after.depth - before.depth))
+               before.depth + weight * (after.depth - before.depth),
+               _lerp(before.roll, after.roll, weight), _lerp(before.pitch, after.pitch, weight),
+               _lerp_angle(before.heading, after.heading, weight))
 
 
 def fixes_between(fixes: list[Fix], start: Fix, end: Fix) -> list[Fix]:
@@ -211,9 +252,11 @@ def write_csv(path: Path, rows: list[Fix]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file_obj:
         writer = csv.writer(file_obj)
         writer.writerow(CSV_FIELDS)
+        angle = lambda value: "" if value is None else f"{value:.2f}"  # noqa: E731
         for fix in rows:
             writer.writerow([fix.time.strftime("%Y-%m-%d"), fix.time.strftime("%H:%M:%S.%f")[:-3],
-                             f"{fix.lat:.8f}", f"{fix.lon:.8f}", f"{fix.depth:.3f}"])
+                             f"{fix.lat:.8f}", f"{fix.lon:.8f}", f"{fix.depth:.3f}",
+                             angle(fix.roll), angle(fix.pitch), angle(fix.heading)])
 
 
 def crop_video(video: Video, out_dir: Path, start_s: float, end_s: float, real_start: datetime,
@@ -285,8 +328,10 @@ def run(videos_dir: Path, navigation: Path, start: str, end: str, out_root: Opti
     write_csv(track_path, track)
     log(f"crop {format_offset(start_s)} - {format_offset(end_s)} of the video = "
         f"{real_start:%H:%M:%S.%f}"[:-3] + f" - {real_end:%H:%M:%S.%f}"[:-3] + " (topside clock)")
-    log(f"  start: {first.lat:.8f}, {first.lon:.8f}, depth {first.depth:.3f} m")
-    log(f"  end:   {last.lat:.8f}, {last.lon:.8f}, depth {last.depth:.3f} m")
+    for label, fix in (("start", first), ("end:", last)):
+        attitude = ("ROV attitude not available (no *_navigation.csv)" if fix.pitch is None else
+                    f"ROV roll {fix.roll:.1f}, pitch {fix.pitch:.1f}, heading {fix.heading:.1f} deg")
+        log(f"  {label:6s} {fix.lat:.8f}, {fix.lon:.8f}, depth {fix.depth:.3f} m; {attitude}")
     log(f"wrote {csv_path}")
     log(f"wrote {track_path} ({len(track)} rows)")
 

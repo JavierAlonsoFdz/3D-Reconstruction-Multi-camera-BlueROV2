@@ -1,112 +1,43 @@
-# GUI Navigation Transects (Georeferencing GUI)
+# GUI Navigation Transects
 
-This folder contains a graphical interface to **crop the four multi-camera videos of a mission to a transect and georeference that transect** using the ROV navigation data.
+Crops the 4 camera videos of a mission to a transect, converts them to MP4 and writes the georeferenced navigation of that transect (position and ROV attitude). The output folder is the input of the [GUI Preprocessing](../GUI%20preprocessing/).
 
-Given a time range inside the videos (`Start` / `End`), the tool:
-
-1. Cuts that range out of each of the four camera `.mkv` videos and converts it to `.mp4` (same `ffmpeg` settings as [`Tools/converter.py`](../Tools/)). Each `.mp4` keeps the real start time of the crop in its `creation_time` metadata.
-2. Converts the video times to real (topside clock) times and interpolates the navigation data to obtain the position (latitude, longitude, depth) at the **first** and **last** frame of the crop.
-3. Writes the four cropped videos and two CSV files into a new output folder: one with the start and end positions, and one with every navigation row (all timestamps) of the crop.
-
-The cropped videos can then be used directly in the [GUI preprocessing](../GUI%20preprocessing/) for keyframe extraction, and the CSV files give the georeferenced start and end of the transect and its full track.
-
-## Files
-
-- `gui_georeferencing.py`: Tkinter GUI.
-- `georeferencing.py`: processing logic. It can also be used from the command line without the GUI.
-
-## Inputs
-
-The `videos/`, `navigation data/` and `output/` folders are **not included in the repository** (mission data). To run the tool you need:
-
-### 1. Videos folder
-
-The four camera videos of the mission, as downloaded with the ROV GUI (**Save Videos**). The file names must contain the camera name:
-
-| Camera | Name in file | Example |
-|--------|--------------|---------|
-| `cam0` | `aux_right` | `video_aux_right.mkv` |
-| `cam1` | `aux_left` | `video_aux_left.mkv` |
-| `cam2` | `bottom_most` | `video_bottom_most.mkv` |
-| `cam3` | `stereo_bottom` | `video_stereo_bottom.mkv` |
-
-`.mkv` and `.mp4` are accepted. The `cam0` (`aux_right`) video is required, as it is the time reference; the other cameras are processed if present.
-
-When the ROV GUI downloads the videos, it writes the real recording start (corrected to the topside clock) into each `.mkv`. If that date is missing or not corrected, the tool falls back to a `recording_time.txt` file placed in the videos folder or its parent folder.
-
-### 2. Navigation data folder
-
-The navigation data folder of the **same mission**, exported by the ROV GUI (not included in the repository). It contains:
-
-- `*_cam0_transformed.csv`: navigation transformed to the position of `cam0` (camera offset and mount already applied). Used with the **cam0** position option (default).
-- `*_navigation.csv`: navigation of the vehicle itself (IMU). Used with the **Vehicle** position option.
-- `recording_time.txt`: recording start in the topside clock (fallback time reference).
-- `*_export.log`, `*_track.png`: export log and track plot (informative only).
-
-The CSV files must contain at least the columns `timestamp`, `lat_deg`, `lon_deg` and `depth_m`. The folder must contain exactly one CSV of the selected type (it is searched recursively), or the CSV itself can be selected.
-
-### 3. Crop times
-
-`Start` and `End` as times **inside the video** in `HH:MM:SS` format (decimals allowed, e.g. `00:03:00.5`). The selected range must lie inside both the video length and the navigation time span.
-
-## Usage
-
-Run the GUI:
+## Run
 
 ```bash
 python gui_georeferencing.py
 ```
 
-In the GUI:
+1. **Mission**: select the `Videos`, `Navigation data` and `Output` folders. The GUI shows the video start, length and fps, and the navigation time span in video time.
+2. **Crop**: `Start` and `End` as times inside the video (`HH:MM:SS`, decimals allowed).
+3. **Position**: `cam0 (aux_right)` (default) or `Vehicle`.
+4. **Start**. **Cancel** stops the current `ffmpeg` conversion.
 
-1. **Mission**: select the `Videos`, `Navigation data` and `Output` folders. By default they point to `videos/`, `navigation data/` and `output/` inside this folder. Once selected, the GUI shows the start date, length and fps of the videos and the time span of the navigation data expressed in video time, which helps to choose the crop.
-2. **Crop**: enter `Start` and `End` (time inside the video).
-3. **Position**: choose `cam0 (aux_right)` (position of the camera) or `Vehicle` (position of the ROV).
-4. Press **Start**. Progress is shown in the log. **Cancel** stops the current `ffmpeg` conversion.
-
-The same process can be run from the command line:
+Command line:
 
 ```bash
-python georeferencing.py --videos videos --navigation "navigation data" --start 00:00:05 --end 00:00:25 [--out output] [--position cam0|vehicle]
+python georeferencing.py --videos <dir> --navigation <dir> --start 00:00:05 --end 00:00:25 [--out <dir>] [--position cam0|vehicle]
 ```
+
+## Inputs (not included in the repository)
+
+- **Videos**: the 4 `.mkv`/`.mp4` videos downloaded with the ROV GUI; names must contain `aux_right`, `aux_left`, `bottom_most`, `stereo_bottom`. `cam0` is required (time reference). The real recording start is read from the `.mkv` metadata, or from `recording_time.txt` as fallback.
+- **Navigation data**: the mission folder exported by the ROV GUI:
+  - `*_cam0_transformed.csv`: position of cam0 (used with `cam0`).
+  - `*_navigation.csv`: position of the vehicle (used with `Vehicle`) and **ROV attitude** (roll, pitch, heading).
+  - `recording_time.txt`: fallback time reference.
 
 ## Output
 
-A folder `<mission>_<HHMMSS start>_<HHMMSS end>` is created inside the output folder, where `<mission>` is the recording name without its start time (e.g. `multicamera_recording`) and the times are the real (topside clock) start and end of the crop:
-
-```
-output/
-└── multicamera_recording_161235_161255/
-    ├── multicamera_recording_161235_161255.csv
-    ├── multicamera_recording_161235_161255_all_timestamps.csv
-    ├── video_aux_left.mp4
-    ├── video_aux_right.mp4
-    ├── video_bottom_most.mp4
-    └── video_stereo_bottom.mp4
+```text
+<output>/<mission>_<HHMMSS start>_<HHMMSS end>/
++-- <name>.csv                   position at the first and last frame of the crop
++-- <name>_all_timestamps.csv    every navigation row of the crop (ends interpolated)
++-- video_aux_left.mp4, video_aux_right.mp4, video_bottom_most.mp4, video_stereo_bottom.mp4
 ```
 
-Both CSV files have the same columns (`Date`, `Timestamp`, `Latitude`, `Longitude`, `Depth`).
-
-**`<name>.csv`**: position at the first and last frame of the crop:
-
-```csv
-Date,Timestamp,Latitude,Longitude,Depth
-2026-10-20,16:12:35.264,55.78323936,12.51413545,0.939
-2026-10-20,16:12:55.264,55.78321505,12.51409064,1.014
-```
-
-**`<name>_all_timestamps.csv`**: every row of the original navigation CSV between the start and end of the crop. The first and last rows are the interpolated start and end positions (the same as in `<name>.csv`), so the track covers exactly the cropped video:
-
-```csv
-Date,Timestamp,Latitude,Longitude,Depth
-2026-10-20,16:12:35.264,55.78323936,12.51413545,0.939
-2026-10-20,16:12:35.265,55.78323936,12.51413545,0.939
-...
-2026-10-20,16:12:55.166,55.78321502,12.51409020,1.019
-2026-10-20,16:12:55.264,55.78321505,12.51409064,1.014
-```
+Both CSVs have the columns `Date, Timestamp, Latitude, Longitude, Depth, Roll, Pitch, Heading`. Roll/Pitch/Heading are the ROV body attitude in degrees (pitch < 0 = nose down, heading clockwise from North); they are empty if `*_navigation.csv` is missing. The GUI Preprocessing uses them to place cam1–cam3 relative to cam0 when the ROV is tilted.
 
 ## Requirements
 
-- Python standard library only (Tkinter for the GUI).
-- `ffmpeg` and `ffprobe` installed and available in the system `PATH`.
+Python standard library (Tkinter) and `ffmpeg`/`ffprobe` in the system `PATH`.
