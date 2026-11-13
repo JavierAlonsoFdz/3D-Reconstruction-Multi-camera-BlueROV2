@@ -47,6 +47,7 @@ def extract_frames_with_keyframes(
     min_disp_px: float,
     min_inliers: int,
     inlier_ratio_thresh: float,
+    nav_path: str | None = None,
 ) -> None:
     """
     Keyframe selection and per-keyframe filtering.
@@ -55,6 +56,9 @@ def extract_frames_with_keyframes(
         dataset_path: folder with 4 camera videos.
         mode: "clear" or "turbid" (user-chosen filter).
         min_disp_px, min_inliers, inlier_ratio_thresh: numeric parameters for keyframe selection.
+        nav_path: optional navigation CSV (or folder containing it). If given, the first and last frames
+            of all cams are replaced by geotagged JPGs (original PNGs moved to processed_frames/original_frames);
+            and a Cesium tileset.json is written to processed_frames/external_georeferencing.
     """
     video_files: Dict[str, str] = map_videos(dataset_path)
     if len(video_files) != 4:
@@ -102,6 +106,8 @@ def extract_frames_with_keyframes(
 
     frame_no: int = 0
     saved: int = 0
+    first_saved: Dict[str, tuple] = {}  # cam_id -> (frame_no, png path) of first saved frame
+    last_saved: Dict[str, tuple] = {}   # cam_id -> (frame_no, png path) of last saved frame
     keyset = set(keyframes) if use_auto else None
 
     while True:
@@ -140,6 +146,8 @@ def extract_frames_with_keyframes(
                 # save final image for texturing
                 out_path: str = os.path.join(cam_folder, f"{cam_id}_img_{frame_no}_best.png")
                 cv2.imwrite(out_path, out_img)
+                first_saved.setdefault(cam_id, (frame_no, out_path))
+                last_saved[cam_id] = (frame_no, out_path)
 
                 print(f"[SAVE] cam={cam_id} frame={frame_no} mode={mode} keyframe_mode={keyframe_mode}")
 
@@ -147,8 +155,33 @@ def extract_frames_with_keyframes(
 
         frame_no += 1
 
+    fps: float = caps["cam0"].get(cv2.CAP_PROP_FPS) if "cam0" in caps else 0.0
     for cap in caps.values():
         cap.release()
+
+    if nav_path:
+        if not fps or fps <= 0:
+            fps = 30.0
+
+        # First and last frame of ALL cams: geotagged JPG (EXIF GPS) in each camera folder,
+        # untouched PNGs moved to original_frames (for models in local coordinates).
+        from nav_georef import georeference_first_last_inplace
+        georeference_first_last_inplace(
+            {c: sorted({first_saved[c], last_saved[c]}) for c in first_saved},
+            nav_path,
+            fps=fps,
+            processed_dir=out_folder,
+            original_dir=os.path.join(out_folder, "original_frames"),
+        )
+
+        # External georeferencing (Cesium tileset.json) for models built in local coordinates
+        from nav_georef import generate_external_georeferencing
+        dataset_name = os.path.basename(os.path.normpath(dataset_path))
+        generate_external_georeferencing(
+            nav_path,
+            os.path.join(out_folder, "external_georeferencing"),
+            model_uri=f"{dataset_name}.glb",
+        )
 
     print(f"Done. Saved {saved} keyframe sets to {out_folder}")
 
@@ -173,6 +206,8 @@ def create_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-disp", type=float, default=150.0)
     p.add_argument("--min-inliers", type=int, default=90)
     p.add_argument("--inlier-ratio-thresh", "--inlier_ratio_thresh", type=float, default=0.7)
+    p.add_argument("--nav", type=str, default=None,
+                   help="Optional navigation CSV (or folder). If given, first/last frames of all cams are georeferenced (EXIF)")
     return p
 
 
@@ -192,4 +227,5 @@ if __name__ == "__main__":
         min_disp_px=args.min_disp,
         min_inliers=args.min_inliers,
         inlier_ratio_thresh=args.inlier_ratio_thresh,
+        nav_path=args.nav,
     )

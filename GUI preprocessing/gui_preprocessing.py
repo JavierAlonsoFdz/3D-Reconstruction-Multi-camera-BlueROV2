@@ -5,6 +5,7 @@ GUI to run the preprocessing pipeline with options for:
 - Dataset folder (with the 4 camera videos)
 - Keyframe mode: auto or fixed (with interval)
 - Filtering mode: raw, turbid, clear
+- Optional navigation CSV: georeference first/last frames of all cams via EXIF
 
 Usage:
     python gui_preprocessing.py
@@ -66,7 +67,7 @@ class PreprocGUI(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Preprocessing GUI")
-        self.geometry("760x520")
+        self.geometry("760x680")
         self.minsize(720, 480)
 
         self._build_ui()
@@ -105,6 +106,27 @@ class PreprocGUI(tk.Tk):
         ttk.Label(path_frame, text=helper, foreground="#555555", wraplength=700, justify=tk.LEFT).pack(
             fill=tk.X, padx=12, pady=(6, 10)
         )
+
+        # Navigation data (optional)
+        nav_frame = ttk.LabelFrame(frm, text="Navigation data (optional)")
+        nav_frame.pack(fill=tk.X, **pad)
+
+        self.nav_var = tk.StringVar()
+        nav_row = ttk.Frame(nav_frame)
+        nav_row.pack(fill=tk.X, padx=4, pady=(8, 0))
+        self.entry_nav = ttk.Entry(nav_row, textvariable=self.nav_var)
+        self.entry_nav.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 6))
+        ttk.Button(nav_row, text="Browse…", command=self._browse_nav).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Label(
+            nav_frame,
+            text="Navigation CSV (Date, Timestamp, Latitude, Longitude, Depth), e.g. *_all_timestamps.csv. "
+                 "If set, the first and last frames of "
+                 "cams 0-3 become geotagged JPGs in their camera folders (originals kept as PNG in "
+                 "processed_frames/original_frames); and a Cesium tileset.json "
+                 "(bounding box from the navigation track) is written to processed_frames/external_georeferencing "
+                 "for models built in local coordinates. Leave empty to skip.",
+            foreground="#555555", wraplength=700, justify=tk.LEFT,
+        ).pack(fill=tk.X, padx=12, pady=(6, 10))
 
         # Keyframe mode frame
         kf_frame = ttk.LabelFrame(frm, text="Keyframes")
@@ -218,6 +240,16 @@ class PreprocGUI(tk.Tk):
         if path:
             self.dataset_var.set(path)
 
+    def _browse_nav(self) -> None:
+        initial = self.dataset_var.get().strip() or None
+        path = filedialog.askopenfilename(
+            title="Select navigation CSV",
+            initialdir=initial,
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if path:
+            self.nav_var.set(path)
+
     def _on_kf_mode_change(self) -> None:
         fixed = (self.kf_mode.get() == "fixed")
         state = tk.NORMAL if fixed else tk.DISABLED
@@ -240,7 +272,7 @@ class PreprocGUI(tk.Tk):
 
     def _set_controls_enabled(self, enabled: bool) -> None:
         state = tk.NORMAL if enabled else tk.DISABLED
-        for w in [self.entry_path, self.fixed_entry, self.start_btn]:
+        for w in [self.entry_path, self.entry_nav, self.fixed_entry, self.start_btn]:
             try:
                 w.configure(state=state)
             except tk.TclError:
@@ -254,6 +286,11 @@ class PreprocGUI(tk.Tk):
             return
         if not os.path.isdir(dataset):
             messagebox.showerror("Invalid path", "The selected folder does not exist.")
+            return
+
+        nav_path = self.nav_var.get().strip() or None
+        if nav_path and not os.path.exists(nav_path):
+            messagebox.showerror("Invalid path", "The navigation data path does not exist.")
             return
 
         mode = self.mode_var.get()
@@ -277,6 +314,7 @@ class PreprocGUI(tk.Tk):
                     min_disp_px=DEFAULTS["min_disp_px"],
                     min_inliers=DEFAULTS["min_inliers"],
                     inlier_ratio_thresh=DEFAULTS["inlier_ratio_thresh"],
+                    nav_path=nav_path,
                 )
                 self.log_queue.put("\n=== Process finished successfully ===\n")
             except Exception as e:

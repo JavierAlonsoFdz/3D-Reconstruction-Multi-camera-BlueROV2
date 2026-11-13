@@ -19,26 +19,16 @@ The main workflow includes:
    - Conversion tools for exporting calibration parameters to formats usable in [3DF Zephyr](Calibration/3DF%20Zephyr/).
 
 2. **[GUI Navigation Transects](GUI%20navigation%20transects/)**
-   - A graphical interface to crop the four camera videos of a mission to a transect and convert them to MP4.
-   - Uses the ROV navigation data to write two CSV files: the georeferenced position (latitude, longitude, depth) at the first and last frame of the crop, and the full track with every navigation timestamp between them.
-   - Position can be reported for `cam0` (camera) or for the vehicle (IMU).
-   - Inputs (not included in the repository): the four `.mkv` videos of the mission downloaded with the ROV GUI, and the navigation data folder of the same mission.
+   - Crops the four camera videos of a mission to a transect and converts them to MP4.
+   - Writes the transect navigation from the ROV data: position (latitude, longitude, depth) and ROV attitude (roll, pitch, heading), at the first/last frame and for every timestamp in between.
 
 3. **[GUI Preprocessing](GUI%20preprocessing/)**
-   - A graphical interface for selecting preprocessing options.
-   - Support for three image-processing modes:
-     - `raw`: extracts frames without image enhancement.
-     - `clear`: applies enhancement intended for clear-water imagery.
-     - `turbid`: applies color restoration and filtering intended for turbid-water imagery.
-   - Support for two keyframe selection strategies:
-     - `fixed`: extracts frames at a fixed interval.
-     - `auto`: selects representative frames using AAFE, a visual-odometry-based keyframe selection strategy.
+   - Extracts synchronized keyframes (`auto` AAFE or `fixed` interval) with `raw`, `clear` or `turbid` image processing.
+   - With the transect navigation CSV it also georeferences the result:
+     - **Internal (3DF Zephyr)**: GPS EXIF in the first/last frame of every camera, using the rig offsets and the ROV attitude.
+     - **External (Cesium)**: `tileset.json` placing a model built in local coordinates on the globe.
 
-4. **[Georeferencing](Georeferencing/)**
-   - [Internal georeferencing](Georeferencing/Internal%20Georeferencing%20via%20EXIF%20metadata%20for%203DF%20Zephyr/) by writing GPS/depth metadata into image EXIF fields for use in 3DF Zephyr.
-   - [External georeferencing](Georeferencing/External%20Georeferencing%20via%20Transformation%20JSON%20for%20Cesium/) by generating transformation data for Cesium-based visualization of exported 3D models.
-
-5. **[Tools](Tools/)**
+4. **[Tools](Tools/)**
    - General-purpose helpers, such as a video cropper to cut a section of any video and convert it to a common format (MP4).
 
 ## Typical Workflow
@@ -46,22 +36,9 @@ The main workflow includes:
 1. Capture synchronized video from the BlueROV2 multi-camera system and download the videos and navigation data with the ROV GUI.
 2. Calibrate the cameras using Kalibr or an equivalent calibration workflow.
 3. Convert calibration outputs if needed for 3DF Zephyr.
-4. Crop the transect of interest with the [GUI Navigation Transects](GUI%20navigation%20transects/), which converts the videos to MP4 and gives the georeferenced start and end position of the transect, plus its full navigation track. (For a plain crop without georeferencing, use the video cropper in [Tools](Tools/).)
-5. Extract keyframes using the preprocessing GUI.
-
-   **Image enhancement mode:**
-
-   - `raw`: extracts frames without image enhancement.
-   - `clear`: applies image enhancement for clear-water conditions.
-   - `turbid`: applies color restoration and filtering for turbid-water conditions.
-
-   **Keyframe extraction strategy:**
-
-   - `fixed`: extracts frames at regular frame intervals.
-   - `auto`: selects keyframes automatically using optical-flow-based motion analysis.
-
-6. Reconstruct the 3D model in photogrammetry software.
-7. Georeference the model internally with EXIF metadata or externally with Cesium transformation files.
+4. Crop the transect of interest with the [GUI Navigation Transects](GUI%20navigation%20transects/) (MP4 videos + navigation CSV). For a plain crop without navigation, use the video cropper in [Tools](Tools/).
+5. Extract keyframes with the [GUI Preprocessing](GUI%20preprocessing/), giving it the transect navigation CSV to georeference the frames.
+6. Reconstruct the 3D model in 3DF Zephyr: georeferenced through the EXIF GPS of the frames, or in local coordinates and placed in Cesium with the generated `tileset.json`.
 
 
 ## Dependencies
@@ -77,11 +54,6 @@ The requirements file includes the main Python packages used by the project:
 - OpenCV
 - NumPy
 - Pillow
-- pandas
-- pyproj
 - PyYAML
 
-Some workflows also require external command-line tools that are not installed with `pip`:
-
-- `ffmpeg` (and `ffprobe`): required by the video cropper in Tools and by the GUI Navigation Transects.
-- `exiftool`: required by the EXIF georeferencing workflow.
+`ffmpeg` and `ffprobe` (not installed with `pip`) are required by the video cropper in Tools and by the GUI Navigation Transects.
