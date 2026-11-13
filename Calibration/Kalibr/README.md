@@ -12,7 +12,7 @@ Before running Kalibr, prepare a calibration folder with:
   - `cam1_aux_left/`
   - `cam2_bottom_most/`
   - `cam3_stereo_bottom/`
-- The checkerboard target configuration file:
+- The AprilGrid target configuration file (6x6 tag36h11, 88 mm tags):
   - `april_6x6_80x80cm.yaml`
 - Optionally, the local helper script:
   - `multicam_bag_creator`
@@ -83,6 +83,45 @@ rosrun kalibr kalibr_calibrate_cameras \
 ```
 
 The topic names must match the topics reported by `rosbag info`. If a different bag creation workflow is used, update the `--topics` argument accordingly.
+
+## Troubleshooting
+
+### `Initialization of focal length failed. Provide manual initialization`
+
+With underwater AprilGrid images, Kalibr's automatic focal-length initialization often fails and Kalibr asks for a value on the keyboard. If the container is not interactive (or the prompt is missed), it reads garbage and the calibration continues with `nan` values (`Projection initialized to: [nan nan nan nan]`).
+
+Force the manual initialization for every camera and give one approximate focal length (in pixels) per camera, in camera order. Values from a previous calibration are a good starting point; they are only the initial guess and are optimized afterwards:
+
+```bash
+export KALIBR_MANUAL_FOCAL_LENGTH_INIT=1
+printf '1430\n1430\n1430\n1430\n' | rosrun kalibr kalibr_calibrate_cameras ...
+```
+
+### `_tkinter.TclError: no display name and no $DISPLAY environment variable`
+
+The calibration finishes and the `.yaml`/`.txt` are written, but the PDF report fails because matplotlib tries to open a window. When running without X11 (e.g. headless Docker), use a non-interactive matplotlib backend and `--dont-show-report`:
+
+```bash
+export MPLBACKEND=Agg
+```
+
+### Headless one-shot run (no interactive container)
+
+From Windows PowerShell (Docker Desktop running), with the calibration folder containing `processed_frames/` and `april_6x6_80x80cm.yaml`:
+
+```powershell
+docker run --rm -e MPLBACKEND=Agg -e KALIBR_MANUAL_FOCAL_LENGTH_INIT=1 `
+  -v "<local_path_to_calibration_folder>:/Calibration" -w /Calibration stereolabs/kalibr bash -c "
+  source /kalibr_workspace/devel/setup.bash &&
+  rosrun kalibr kalibr_bagcreater --folder /Calibration/processed_frames --output-bag /Calibration/all_cams_calibration.bag &&
+  printf '1430\n1430\n1430\n1430\n' | rosrun kalibr kalibr_calibrate_cameras \
+    --models pinhole-radtan pinhole-radtan pinhole-radtan pinhole-radtan \
+    --bag /Calibration/all_cams_calibration.bag \
+    --topics /cam0_aux_right/image_raw /cam1_aux_left/image_raw /cam2_bottom_most/image_raw /cam3_stereo_bottom/image_raw \
+    --target /Calibration/april_6x6_80x80cm.yaml --dont-show-report"
+```
+
+Because of `-w /Calibration`, the `camchain-*.yaml`, `results-*.txt` and `report-*.pdf` files are written directly to the mounted folder, so the manual copy step below is not needed.
 
 ## Output Files
 
