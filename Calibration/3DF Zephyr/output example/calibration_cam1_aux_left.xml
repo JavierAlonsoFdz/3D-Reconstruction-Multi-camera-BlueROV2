@@ -1,2 +1,2 @@
 <?xml version='1.0' encoding='utf-8'?>
-<calibrations><camera cameraMaker="NA" cameraModel="pinhole" lense="NA" fx="1383.039976493882" fy="1383.643551256326" cx="987.2615035117472" cy="556.1618447109249" k1="-0.2697942198114605" k2="0.09574777123216412" p1="-0.0013285080243162868" p2="-0.0025674571239576306" k3="0" name="cam1_aux_left" /></calibrations>
+<calibrations><camera cameraMaker="NA" cameraModel="pinhole" lense="NA" fx="1429.2892831943395" fy="1436.152772373107" cx="955.6163930582243" cy="516.1696205587124" k1="-0.32015948081471607" k2="0.13421186933717782" p1="0.00401552772334898" p2="0.004237074928650563" k3="0" name="cam1_aux_left" /></calibrations>
