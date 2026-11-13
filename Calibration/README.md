@@ -8,6 +8,6 @@ This variability is crucial for camera calibration: changing distance helps cons
 
 ## Contents
 
-- `Calibration GUI for Kalibr/`: graphical preprocessing tool for extracting Kalibr-compatible calibration image sets from the multi-camera videos.
+- `Calibration GUI for Kalibr/`: graphical tool that automatically extracts, from the 4 full camera videos, the synchronized frames where the whole AprilGrid is visible in all 4 cameras, in Kalibr-compatible format.
 - `Kalibr/`: calibration inputs, outputs, and checkerboard target configuration for Kalibr.
 - `3DF Zephyr/`: tools and examples for converting calibration parameters into formats usable in 3DF Zephyr.
