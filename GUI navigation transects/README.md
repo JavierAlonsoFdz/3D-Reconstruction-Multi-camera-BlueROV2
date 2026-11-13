@@ -2,6 +2,8 @@
 
 Crops the 4 camera videos of a mission to a transect, converts them to MP4 and writes the georeferenced navigation of that transect (position and ROV attitude). The output folder is the input of the [GUI Preprocessing](../GUI%20preprocessing/).
 
+![GUI Navigation Transects](../images/navigation%20transects%20GUI.png)
+
 ## Run
 
 ```bash
