@@ -28,11 +28,13 @@ from PIL import Image, TiffImagePlugin
 
 # ---------------- Navigation CSV ----------------
 def resolve_nav_csv(nav_path: str) -> str:
-    """Accept a CSV file or a folder. In a folder, prefer '*_all_timestamps.csv'."""
+    """Accept a CSV file or a folder. In a folder, prefer '*_frames.csv' (one row per frame, from the
+    GUI Navigation Transects), then '*_all_timestamps.csv'."""
     if os.path.isfile(nav_path):
         return nav_path
     if os.path.isdir(nav_path):
-        dense = sorted(glob.glob(os.path.join(nav_path, "*all_timestamps*.csv")))
+        dense = (sorted(glob.glob(os.path.join(nav_path, "*_frames.csv")))
+                 or sorted(glob.glob(os.path.join(nav_path, "*all_timestamps*.csv"))))
         if dense:
             return dense[0]
         any_csv = sorted(glob.glob(os.path.join(nav_path, "*.csv")))
@@ -76,9 +78,17 @@ def load_navigation(csv_path: str) -> Tuple[datetime, np.ndarray, np.ndarray, np
         if None in (c_date, c_time, c_lat, c_lon, c_depth):
             raise ValueError("Navigation CSV needs Date, Timestamp, Latitude, Longitude and Depth columns.")
 
+        first_time: Optional[datetime] = None
         for row in reader:
             try:
                 t = _parse_time(row[c_date], row[c_time])  # type: ignore[index]
+            except (ValueError, TypeError, KeyError):
+                continue
+            # Frame 0 is the first row, even without a position (a *_frames.csv from the GUI
+            # Navigation Transects has one row per frame, empty where there is no navigation).
+            if first_time is None or t < first_time:
+                first_time = t
+            try:
                 la, lo, de = float(row[c_lat]), float(row[c_lon]), float(row[c_depth])  # type: ignore[index]
             except (ValueError, TypeError, KeyError):
                 continue
@@ -91,7 +101,7 @@ def load_navigation(csv_path: str) -> Tuple[datetime, np.ndarray, np.ndarray, np
         raise ValueError("No valid rows in navigation CSV.")
 
     order = np.argsort(np.array([t.timestamp() for t in times]))
-    t0 = times[order[0]]
+    t0 = first_time if first_time is not None else times[order[0]]
     t_sec = np.array([(times[i] - t0).total_seconds() for i in order], dtype=float)
     return (
         t0,

@@ -6,9 +6,9 @@ GUI to crop the 4 multicamera videos of a mission and georeference the crop:
 - Navigation data folder of the same mission
 - Start / end inside the video (HH:MM:SS)
 
-Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4, a CSV with the
-position (date, time, latitude, longitude, depth) at the first and the last frame, and
-a *_all_timestamps.csv with the same columns for every navigation row in between.
+Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4 and <name>_frames.csv: one row per
+frame of the crop (frame 0 = first frame of the MP4s) with the cam0 (aux_right) position, depth,
+altitude, ROV attitude and cam0 orientation at the moment that frame was taken.
 
 Usage:
     python gui_georeferencing.py
@@ -77,7 +77,8 @@ class GeoreferencingGUI(tk.Tk):
         helper = (
             "Videos: the folder with the 4 camera .mkv of the mission, downloaded with the ROV GUI (Save Videos), "
             "so their recording date is in the topside clock. Navigation data: the mission folder with "
-            "*_cam0_transformed.csv. Output: a folder <mission>_<start>_<end> is created inside it."
+            "*_cam0_frames.csv (or *_cam0_transformed.csv for older missions). Output: a folder "
+            "<mission>_<start>_<end> is created inside it, with the cropped MP4s and <name>_frames.csv (cam0 position)."
         )
         ttk.Label(paths, text=helper, foreground="#555555", wraplength=720, justify=tk.LEFT).grid(
             row=3, column=0, columnspan=3, sticky=tk.W, padx=10, pady=(4, 8)
@@ -104,23 +105,6 @@ class GeoreferencingGUI(tk.Tk):
             row=0, column=4, sticky=tk.W, padx=(20, 10), pady=8
         )
 
-        # Position
-        pos = ttk.LabelFrame(frm, text="Position")
-        pos.pack(fill=tk.X, **pad)
-        self.position_var = tk.StringVar(value="cam0")
-        ttk.Radiobutton(pos, text="cam0 (aux_right)", value="cam0", variable=self.position_var).grid(
-            row=0, column=0, sticky=tk.W, padx=10, pady=(8, 2)
-        )
-        ttk.Label(pos, text="Position of the camera (navigation transformed to cam0).", foreground="#555555").grid(
-            row=0, column=1, sticky=tk.W, padx=(6, 10), pady=(8, 2)
-        )
-        ttk.Radiobutton(pos, text="Vehicle", value="vehicle", variable=self.position_var).grid(
-            row=1, column=0, sticky=tk.W, padx=10, pady=(2, 8)
-        )
-        ttk.Label(pos, text="Position of the ROV itself (IMU).", foreground="#555555").grid(
-            row=1, column=1, sticky=tk.W, padx=(6, 10), pady=(2, 8)
-        )
-
         # Control buttons
         btn_frame = ttk.Frame(frm)
         btn_frame.pack(fill=tk.X, **pad)
@@ -144,19 +128,7 @@ class GeoreferencingGUI(tk.Tk):
         """Show the videos' real start and duration and the navigation span for the selected folders."""
         def work() -> None:
             try:
-                videos = geo.find_videos(Path(self.videos_var.get()), log=lambda _m: None)
-                ref = videos[geo.REFERENCE_CAMERA]
-                text = (f"{len(videos)} videos · start {ref.start:%Y-%m-%d %H:%M:%S} · "
-                        f"length {geo.format_offset(ref.duration_s)} ({ref.duration_s:.1f} s) at {ref.fps:g} fps")
-                try:
-                    nav = geo.find_navigation(Path(self.nav_var.get()), self.position_var.get())
-                    fixes = geo.load_fixes(nav)
-                    offset = (fixes[0].time - ref.start).total_seconds()
-                    text += (f"\nNavigation {geo.mission_name(nav)}: {fixes[0].time:%H:%M:%S} - {fixes[-1].time:%H:%M:%S}"
-                             f" (video time {geo.format_offset(max(0.0, offset))} - "
-                             f"{geo.format_offset(max(0.0, (fixes[-1].time - ref.start).total_seconds()))})")
-                except Exception as error:  # noqa: BLE001
-                    text += f"\nNavigation: {error}"
+                text = geo.describe(Path(self.videos_var.get()), Path(self.nav_var.get()))
             except Exception as error:  # noqa: BLE001
                 text = f"Videos: {error}"
             self.after(0, lambda: self.info_var.set(text))
@@ -202,7 +174,7 @@ class GeoreferencingGUI(tk.Tk):
         self._set_controls_enabled(False)
         self._append_log("\n=== Process started ===\n")
         args = (Path(videos), Path(nav), self.start_var.get(), self.end_var.get(),
-                Path(self.out_var.get()) if self.out_var.get().strip() else None, self.position_var.get())
+                Path(self.out_var.get()) if self.out_var.get().strip() else None)
 
         def worker() -> None:
             try:
