@@ -56,9 +56,13 @@ def extract_frames_with_keyframes(
         dataset_path: folder with 4 camera videos.
         mode: "clear" or "turbid" (user-chosen filter).
         min_disp_px, min_inliers, inlier_ratio_thresh: numeric parameters for keyframe selection.
-        nav_path: optional navigation CSV (or folder containing it). If given, the first and last frames
-            of all cams are replaced by geotagged JPGs (original PNGs moved to processed_frames/original_frames);
-            and a Cesium tileset.json is written to processed_frames/external_georeferencing.
+        nav_path: optional navigation CSV (or the transect folder holding it; *_frames.csv from the GUI
+            Navigation Transects preferred). If given, EVERY saved frame of every camera is written as a
+            JPG with GPS EXIF (cam0 from the CSV, cam1..cam3 placed with the rig lever arms rotated by the
+            ROV attitude); geotags.csv (what was written) and external_georeferencing/ (Cesium
+            tileset.json) go next to processed_frames. Without it, frames are saved as PNG.
+
+    processed_frames/ holds only the 4 camera folders; keyframes.txt is written next to it.
     """
     video_files: Dict[str, str] = map_videos(dataset_path)
     if len(video_files) != 4:
@@ -87,8 +91,8 @@ def extract_frames_with_keyframes(
         keyframes = thin_keyframes(keyframes)
         keyframe_reasons = {k: keyframe_reasons.get(k, "") for k in keyframes}
 
-        # Persist keyframes only for auto mode
-        with open(os.path.join(out_folder, "keyframes.txt"), "w") as f:
+        # Persist keyframes only for auto mode (next to processed_frames, which holds only the camera folders)
+        with open(os.path.join(dataset_path, "keyframes.txt"), "w") as f:
             for k in keyframes:
                 reason = keyframe_reasons.get(k, "")
                 f.write(f"{k}\t{reason}\n")
@@ -99,6 +103,12 @@ def extract_frames_with_keyframes(
         if not cap.isOpened():
             raise RuntimeError(f"Cannot open {video_files[cam]}")
 
+    georeferencer = None
+    if nav_path:
+        from nav_georef import FrameGeoreferencer
+        fps_nav: float = caps[ref_cam].get(cv2.CAP_PROP_FPS) or 30.0
+        georeferencer = FrameGeoreferencer(nav_path, fps=fps_nav)
+
     # prepare per-camera folders
     for cam_id in video_files:
         cam_name: str = CAMERA_NAME_MAP.get(cam_id, cam_id)
@@ -106,8 +116,6 @@ def extract_frames_with_keyframes(
 
     frame_no: int = 0
     saved: int = 0
-    first_saved: Dict[str, tuple] = {}  # cam_id -> (frame_no, png path) of first saved frame
-    last_saved: Dict[str, tuple] = {}   # cam_id -> (frame_no, png path) of last saved frame
     keyset = set(keyframes) if use_auto else None
 
     while True:
@@ -143,11 +151,13 @@ def extract_frames_with_keyframes(
 
                 else:
                     out_img= frame
-                # save final image for texturing
-                out_path: str = os.path.join(cam_folder, f"{cam_id}_img_{frame_no}_best.png")
-                cv2.imwrite(out_path, out_img)
-                first_saved.setdefault(cam_id, (frame_no, out_path))
-                last_saved[cam_id] = (frame_no, out_path)
+                # save final image for texturing: JPG with GPS EXIF when there is navigation, else PNG
+                if georeferencer is not None:
+                    out_path: str = os.path.join(cam_folder, f"{cam_id}_img_{frame_no}_best.jpg")
+                    georeferencer.save_jpg(out_img, out_path, cam_id, frame_no)
+                else:
+                    out_path = os.path.join(cam_folder, f"{cam_id}_img_{frame_no}_best.png")
+                    cv2.imwrite(out_path, out_img)
 
                 print(f"[SAVE] cam={cam_id} frame={frame_no} mode={mode} keyframe_mode={keyframe_mode}")
 
@@ -155,31 +165,23 @@ def extract_frames_with_keyframes(
 
         frame_no += 1
 
-    fps: float = caps["cam0"].get(cv2.CAP_PROP_FPS) if "cam0" in caps else 0.0
     for cap in caps.values():
         cap.release()
 
-    if nav_path:
-        if not fps or fps <= 0:
-            fps = 30.0
-
-        # First and last frame of ALL cams: geotagged JPG (EXIF GPS) in each camera folder,
-        # untouched PNGs moved to original_frames (for models in local coordinates).
-        from nav_georef import georeference_first_last_inplace
-        georeference_first_last_inplace(
-            {c: sorted({first_saved[c], last_saved[c]}) for c in first_saved},
-            nav_path,
-            fps=fps,
-            processed_dir=out_folder,
-            original_dir=os.path.join(out_folder, "original_frames"),
-        )
+    if georeferencer is not None:
+        positions_csv = os.path.join(dataset_path, "geotags.csv")
+        georeferencer.write_positions(positions_csv)
+        print(f"[GEO] {len(georeferencer.rows)} image(s) geotagged (EXIF GPS) in the camera folders; "
+              f"positions written to {positions_csv}")
+        if georeferencer.outside:
+            print(f"[GEO][WARN] {georeferencer.outside} image(s) had no navigation at their time and have no GPS")
 
         # External georeferencing (Cesium tileset.json) for models built in local coordinates
         from nav_georef import generate_external_georeferencing
         dataset_name = os.path.basename(os.path.normpath(dataset_path))
         generate_external_georeferencing(
             nav_path,
-            os.path.join(out_folder, "external_georeferencing"),
+            os.path.join(dataset_path, "external_georeferencing"),
             model_uri=f"{dataset_name}.glb",
         )
 
@@ -207,7 +209,8 @@ def create_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-inliers", type=int, default=90)
     p.add_argument("--inlier-ratio-thresh", "--inlier_ratio_thresh", type=float, default=0.7)
     p.add_argument("--nav", type=str, default=None,
-                   help="Optional navigation CSV (or folder). If given, first/last frames of all cams are georeferenced (EXIF)")
+                   help="Optional navigation CSV (or folder, *_frames.csv preferred). If given, every saved frame "
+                        "of every camera is written as a JPG with GPS EXIF")
     return p
 
 

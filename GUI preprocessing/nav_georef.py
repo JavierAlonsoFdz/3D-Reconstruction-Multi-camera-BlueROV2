@@ -175,6 +175,13 @@ def _deg_to_dms(value: float) -> Tuple[TiffImagePlugin.IFDRational, ...]:
 
 def _save_jpg_with_gps(src_png: str, dst_jpg: str, lat: float, lon: float, depth: float, when: datetime) -> None:
     """Convert PNG -> JPG and embed GPS + capture time via Pillow (no exiftool needed)."""
+    with Image.open(src_png) as img:
+        _save_rgb_jpg_with_gps(img.convert("RGB"), dst_jpg, lat, lon, depth, when)
+
+
+def _save_rgb_jpg_with_gps(img: Image.Image, dst_jpg: str, lat: float, lon: float, depth: float,
+                           when: datetime) -> None:
+    """Save an RGB image as JPG with GPS + capture time EXIF (depth = GPS altitude below sea level)."""
     R = TiffImagePlugin.IFDRational
     exif = Image.Exif()
 
@@ -194,8 +201,7 @@ def _save_jpg_with_gps(src_png: str, dst_jpg: str, lat: float, lon: float, depth
     gps[7] = (R(when.hour, 1), R(when.minute, 1), R(int(round((when.second + when.microsecond / 1e6) * 1000)), 1000))
     gps[29] = when.strftime("%Y:%m:%d")
 
-    with Image.open(src_png) as img:
-        img.convert("RGB").save(dst_jpg, "JPEG", quality=95, exif=exif)
+    img.save(dst_jpg, "JPEG", quality=95, exif=exif)
 
 
 # ---------------- Main entry ----------------
@@ -418,6 +424,93 @@ def georeference_first_last_inplace(
     print(f"[GEO-FL] Geotagged {len(rows)} first/last frame(s) in the camera folders; "
           f"original PNGs kept in {original_dir}")
     return len(rows)
+
+
+class FrameGeoreferencer:
+    """
+    EXIF position of any frame of any camera, from the transect navigation CSV.
+
+    cam0 = the navigation position at the frame's time (t0 + frame_no / fps; with a *_frames.csv from
+    the GUI Navigation Transects that is exactly the row Frame = frame_no). cam1..cam3 = cam0 + their
+    lever arm on the rig (OTHER_CAM_OFFSETS), rotated by the ROV attitude of that frame (Roll, Pitch,
+    Heading columns; level ROV and heading from the track if the CSV has none). Depth positive down,
+    written as GPS altitude below sea level, as in georeference_first_last_inplace.
+    """
+
+    def __init__(self, nav_path: str, fps: float = 30.0,
+                 offsets: Optional[Dict[str, Tuple[float, float, float]]] = None) -> None:
+        self.csv_path = resolve_nav_csv(nav_path)
+        self.fps = fps
+        self.t0, self.t_sec, self.lat, self.lon, self.depth = load_navigation(self.csv_path)
+        self.attitude = load_attitude(self.csv_path, self.t0)
+        self.offsets = dict(offsets or OTHER_CAM_OFFSETS)
+        self.offsets.setdefault("cam0", (0.0, 0.0, 0.0))
+        self.rows: List[tuple] = []
+        self.outside = 0
+        # *_frames.csv: the exact capture time of every frame (else t0 + frame_no / fps)
+        self.frame_times: Dict[int, datetime] = {}
+        with open(self.csv_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            cols = {h.strip().lower(): h for h in (reader.fieldnames or [])}
+            if "frame" in cols and "date" in cols and "timestamp" in cols:
+                for row in reader:
+                    try:
+                        self.frame_times[int(row[cols["frame"]])] = _parse_time(row[cols["date"]], row[cols["timestamp"]])
+                    except (ValueError, TypeError):
+                        continue
+        source = "ROV attitude" if self.attitude is not None else "level ROV, heading from the track"
+        print(f"[GEO] Navigation: {os.path.basename(self.csv_path)} ({len(self.t_sec)} positions, "
+              f"frame 0 = {self.t0:%H:%M:%S.%f}"[:-3] + f", {self.t_sec[-1]:.2f} s); cam1-3 placed with {source}")
+
+    def pose(self, cam_id: str, frame_no: int) -> Optional[dict]:
+        """Position and attitude of cam_id at frame_no, or None when the frame has no navigation."""
+        exact = self.frame_times.get(frame_no)
+        ts = (exact - self.t0).total_seconds() if exact is not None else frame_no / self.fps
+        if ts < self.t_sec[0] - 0.5 / self.fps or ts > self.t_sec[-1] + 0.5 / self.fps:
+            return None
+        lat0 = float(np.interp(ts, self.t_sec, self.lat))
+        lon0 = float(np.interp(ts, self.t_sec, self.lon))
+        dep0 = float(np.interp(ts, self.t_sec, self.depth))
+        if self.attitude is not None:
+            roll, pitch, hdg = attitude_at(self.attitude, ts)
+            source = "ROV attitude"
+        else:
+            roll, pitch, hdg = 0.0, 0.0, estimate_heading_deg(self.t_sec, self.lat, self.lon, ts)
+            source = "level ROV, heading from track"
+        right, fwd, up = self.offsets[cam_id]
+        d_north, d_east, d_down = rotation_ned_body(roll, pitch, hdg) @ np.array([fwd, right, -up])
+        m_lat, m_lon = _metres_per_degree(lat0)
+        return {
+            "when": self.t0 + timedelta(seconds=ts), "lat": lat0 + d_north / m_lat, "lon": lon0 + d_east / m_lon,
+            "depth": dep0 + d_down, "roll": roll, "pitch": pitch, "heading": hdg,
+            "d_east": d_east, "d_north": d_north, "d_down": d_down, "source": source,
+        }
+
+    def save_jpg(self, image_bgr: np.ndarray, dst_jpg: str, cam_id: str, frame_no: int) -> bool:
+        """Write the frame as a JPG with GPS EXIF; without GPS (and False) when it has no navigation."""
+        pose = self.pose(cam_id, frame_no)
+        rgb = Image.fromarray(np.ascontiguousarray(image_bgr[:, :, ::-1]))
+        if pose is None:
+            self.outside += 1
+            rgb.save(dst_jpg, "JPEG", quality=95)
+            print(f"[GEO][WARN] {cam_id} frame={frame_no}: no navigation at this time, saved without GPS")
+            return False
+        _save_rgb_jpg_with_gps(rgb, dst_jpg, pose["lat"], pose["lon"], pose["depth"], pose["when"])
+        self.rows.append((os.path.basename(dst_jpg), cam_id, frame_no, pose))
+        return True
+
+    def write_positions(self, path: str) -> None:
+        """CSV of what was written into the EXIF of every image (for checking)."""
+        with open(path, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["Image", "Camera", "Frame", "Timestamp", "Latitude", "Longitude", "Depth",
+                        "Roll_deg", "Pitch_deg", "Heading_deg", "OffsetEast_m", "OffsetNorth_m", "OffsetDown_m",
+                        "AttitudeSource"])
+            for image, cam_id, frame_no, p in self.rows:
+                w.writerow([image, cam_id, frame_no, p["when"].strftime("%H:%M:%S.%f")[:-3],
+                            f"{p['lat']:.8f}", f"{p['lon']:.8f}", f"{p['depth']:.3f}",
+                            f"{p['roll']:.1f}", f"{p['pitch']:.1f}", f"{p['heading']:.1f}",
+                            f"{p['d_east']:.3f}", f"{p['d_north']:.3f}", f"{p['d_down']:.3f}", p["source"]])
 
 
 # =====================================================================

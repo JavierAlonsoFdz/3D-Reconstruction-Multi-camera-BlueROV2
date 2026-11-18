@@ -6,7 +6,7 @@ GUI to crop the 4 multicamera videos of a mission and georeference the crop:
 - Navigation data folder of the same mission
 - Start / end inside the video (HH:MM:SS)
 
-Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4 and <name>_frames.csv: one row per
+Writes, in output/<mission>_<start>_<end>/, the 4 cropped .mp4 and <name>_cam0_frames.csv: one row per
 frame of the crop (frame 0 = first frame of the MP4s) with the cam0 (aux_right) position, depth,
 altitude, ROV attitude and cam0 orientation at the moment that frame was taken.
 
@@ -78,7 +78,7 @@ class GeoreferencingGUI(tk.Tk):
             "Videos: the folder with the 4 camera .mkv of the mission, downloaded with the ROV GUI (Save Videos), "
             "so their recording date is in the topside clock. Navigation data: the mission folder with "
             "*_cam0_frames.csv (or *_cam0_transformed.csv for older missions). Output: a folder "
-            "<mission>_<start>_<end> is created inside it, with the cropped MP4s and <name>_frames.csv (cam0 position)."
+            "<mission>_<start>_<end> is created inside it, with the cropped MP4s and <name>_cam0_frames.csv (cam0 position)."
         )
         ttk.Label(paths, text=helper, foreground="#555555", wraplength=720, justify=tk.LEFT).grid(
             row=3, column=0, columnspan=3, sticky=tk.W, padx=10, pady=(4, 8)

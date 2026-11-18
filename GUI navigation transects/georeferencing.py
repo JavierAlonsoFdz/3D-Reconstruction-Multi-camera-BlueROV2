@@ -8,7 +8,7 @@ navigation data folder), this:
      and cuts exactly those frames out of each .mkv, converted to .mp4 (same ffmpeg settings as
      converter.py). Frame k of every .mp4 is frame k of the CSVs below: the 4 cameras are
      frame-synchronised (same start, same frame count), so the same frame numbers are cut;
-  2. writes <mission>_<HHMMSS start>_<HHMMSS end>_frames.csv: ONE ROW PER FRAME of the crop with
+  2. writes <mission>_<HHMMSS start>_<HHMMSS end>_cam0_frames.csv: ONE ROW PER FRAME of the crop with
      the cam0 position, depth, altitude, ROV attitude, cam0 attitude/quaternion and local position
      at the moment that frame was taken, to geotag any frame you pick later (e.g. EXIF for Zephyr).
      Its Frame column starts at 0 with the first frame of the MP4s, as the GUI Preprocessing counts.
@@ -513,7 +513,7 @@ def run(videos_dir: Path, navigation: Path, start: str, end: str, out_root: Opti
     out_dir = Path(out_root or Path(__file__).resolve().parent / "output") / name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    frames_path = out_dir / f"{name}_frames.csv"
+    frames_path = out_dir / f"{name}_cam0_frames.csv"
     write_frames_csv(frames_path, selected)
     for label, frame in (("first", first), ("last", last)):
         v = frame.values

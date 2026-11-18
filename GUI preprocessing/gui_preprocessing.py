@@ -5,7 +5,8 @@ GUI to run the preprocessing pipeline with options for:
 - Dataset folder (with the 4 camera videos)
 - Keyframe mode: auto or fixed (with interval)
 - Filtering mode: raw, turbid, clear
-- Optional navigation CSV: georeference first/last frames of all cams via EXIF
+- Optional navigation CSV (*_frames.csv from the GUI Navigation Transects): every saved frame of
+  every camera is written as a JPG with GPS EXIF
 
 Usage:
     python gui_preprocessing.py
@@ -119,12 +120,12 @@ class PreprocGUI(tk.Tk):
         ttk.Button(nav_row, text="Browse…", command=self._browse_nav).pack(side=tk.LEFT, padx=(0, 6))
         ttk.Label(
             nav_frame,
-            text="Navigation CSV (Date, Timestamp, Latitude, Longitude, Depth), e.g. *_all_timestamps.csv. "
-                 "If set, the first and last frames of "
-                 "cams 0-3 become geotagged JPGs in their camera folders (originals kept as PNG in "
-                 "processed_frames/original_frames); and a Cesium tileset.json "
-                 "(bounding box from the navigation track) is written to processed_frames/external_georeferencing "
-                 "for models built in local coordinates. Leave empty to skip.",
+            text="Navigation CSV: the *_frames.csv written by the GUI Navigation Transects for this transect "
+                 "(one row per frame; frame n of the videos = row Frame = n). If set, every saved frame of "
+                 "cams 0-3 is a JPG with GPS EXIF (position, depth, time): cam0 from the CSV, cam1-3 placed "
+                 "with the rig lever arms rotated by the ROV attitude. processed_frames holds only the 4 camera "
+                 "folders; keyframes.txt, geotags.csv (what was written) and external_georeferencing (Cesium "
+                 "tileset.json) go next to it. Leave empty to save PNGs without georeferencing.",
             foreground="#555555", wraplength=700, justify=tk.LEFT,
         ).pack(fill=tk.X, padx=12, pady=(6, 10))
 

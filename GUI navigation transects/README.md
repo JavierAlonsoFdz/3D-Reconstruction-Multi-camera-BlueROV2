@@ -32,7 +32,7 @@ python georeferencing.py --videos <dir> --navigation <dir> --start 00:00:03 --en
 
 ```text
 <output>/<mission>_<HHMMSS first frame>_<HHMMSS last frame>/
-+-- <name>_frames.csv            ONE ROW PER FRAME of the crop, all the information (see below)
++-- <name>_cam0_frames.csv       ONE ROW PER FRAME of the crop, all the information (see below)
 +-- video_aux_left.mp4, video_aux_right.mp4, video_bottom_most.mp4, video_stereo_bottom.mp4
 ```
 
@@ -40,7 +40,7 @@ python georeferencing.py --videos <dir> --navigation <dir> --start 00:00:03 --en
 
 **Timing.** Frame times are the video's recording date (corrected to the topside clock, the same clock as the navigation) plus each frame's presentation time; checked against the yaw rotation seen in the video to within ±0.05 s (under 2 frames). The offset between the start of the video and the start of the navigation (0.6–1.4 s) is therefore already accounted for.
 
-`<name>_frames.csv` columns:
+`<name>_cam0_frames.csv` columns:
 
 | Column | |
 |---|---|
